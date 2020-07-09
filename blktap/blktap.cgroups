@@ -1,0 +1,7 @@
+{
+   "memory": {
+     "MaxPercentageRam": 25.0
+   },
+   "blkio":{
+   }
+}

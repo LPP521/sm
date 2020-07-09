@@ -60,7 +60,76 @@ POOL_NAME_KEY = "mem-pool"
 POOL_SIZE_KEY = "mem-pool-size-rings"
 
 ENABLE_MULTIPLE_ATTACH = "/etc/xensource/allow_multiple_vdi_attach"
-NO_MULTIPLE_ATTACH = not (os.path.exists(ENABLE_MULTIPLE_ATTACH)) 
+NO_MULTIPLE_ATTACH = not (os.path.exists(ENABLE_MULTIPLE_ATTACH))
+
+CONF_FILE = "/etc/blktap/blktap.cgroups"
+CGROUP_PATH = "/sys/fs/cgroup/"
+
+
+def cgroup_set_param(param_path, param):
+    if util.pathexists(param_path):
+        with open(param_path, 'w') as f:
+            f.write(str(param))
+    else:
+        message = "No cgroup param found {}"
+        raise util.SMException(message.format(param_path))
+
+def max_percentage_ram(percentage):
+    param_path = os.path.join(CGROUP_PATH, "memory",
+                              "tapdisk",
+                              "memory.limit_in_bytes")
+    array_total_mem = util.pread(["grep",
+                            "MemTotal",
+                            "/proc/meminfo"]).split()[1]
+    total_mem = array_total_mem[1]
+    units = array_total_mem[2]
+
+    if units != "kB": 
+        message = "Format of /proc/meminfo has changed"
+        raise util.SMException(message)
+
+    mem_we_want = (percentage/100)*float(total_mem)
+    param = "{}k".format(str(int(mem_we_want)))
+    cgroup_set_param(param_path, param)
+
+
+cgroup_special_case = {"MaxPercentageRam": max_percentage_ram}
+
+
+def cgroup_params(cgroup, path, data):
+    for key in data:
+        if key in cgroup_special_case:
+            cgroup_special_case[key](data[key])
+        else:
+            param_path = os.path.join(path, key)
+            cgroup_set_param(param_path, data[key])
+
+
+def cgroup_create(data):
+    for key in data:
+        path = os.path.join(CGROUP_PATH, key, "tapdisk")
+        if not util.pathexists(path):
+            os.mkdir(path)
+        cgroup_params(key, path, data[key])
+
+
+def cgroup_config():
+    if util.pathexists(CONF_FILE):
+        with open(CONF_FILE) as json_file:
+            data = json.load(json_file)
+            cgroup_create(data)
+            _cgroups = list(data.keys())
+            return _cgroups
+    return None
+
+
+def cgroup_move(pid, _cgroups):
+    for cgroup in _cgroups:
+        path = os.path.join(CGROUP_PATH, cgroup, "tapdisk/cgroup.procs")
+        if util.pathexists(path):
+            with open(path, 'w') as f:
+                f.write(str(pid))
+
 
 class UnixStreamHTTPConnection(HTTPConnection):
     def connect(self):
@@ -773,9 +842,11 @@ class Tapdisk(object):
             raise TapdiskExists(tapdisk)
 
         minor = blktap.minor
+        _cgroups = cgroup_config()
 
         try:
             pid = TapCtl.spawn()
+            cgroup_move(pid, _cgroups)
 
             try:
                 TapCtl.attach(pid, minor)

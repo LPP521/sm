@@ -78,6 +78,7 @@ MASTER_SCRIPT_DEST := /etc/xensource/master.d/
 PLUGIN_SCRIPT_DEST := /etc/xapi.d/plugins/
 LIBEXEC := /opt/xensource/libexec/
 UDEV_RULES_DIR := /etc/udev/rules.d/
+BLKTAP_DIR := /etc/blktap
 UDEV_SCRIPTS_DIR := /etc/udev/scripts/
 SYSTEMD_SERVICE_DIR := /usr/lib/systemd/system/
 INIT_DIR := /etc/rc.d/init.d/
@@ -130,6 +131,7 @@ install: precheck
 	mkdir -p $(SM_STAGING)$(SM_DEST)
 	mkdir -p $(SM_STAGING)$(SM_DEST)/plugins
 	mkdir -p $(SM_STAGING)$(UDEV_RULES_DIR)
+	mkdir -p $(SM_STAGING)$(BLKTAP_DIR)
 	mkdir -p $(SM_STAGING)$(UDEV_SCRIPTS_DIR)
 	mkdir -p $(SM_STAGING)$(INIT_DIR)
 	mkdir -p $(SM_STAGING)$(SYSTEMD_SERVICE_DIR)
@@ -169,6 +171,8 @@ install: precheck
 	  $(SM_STAGING)/$(SYSTEMD_SERVICE_DIR)
 	install -m 644 systemd/storage-init.service \
 	  $(SM_STAGING)/$(SYSTEMD_SERVICE_DIR)
+	install -m 644 blktap/blktap.cgroups \
+	  $(SM_STAGING)/$(BLKTAP_DIR)
 	for i in $(UDEV_RULES); do \
 	  install -m 644 udev/$$i.rules \
 	    $(SM_STAGING)$(UDEV_RULES_DIR); done
